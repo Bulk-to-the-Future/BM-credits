@@ -1,76 +1,125 @@
 import { SaleorAsyncWebhook } from "@saleor/app-sdk/handlers/next";
+import { saleorApp } from "../../../saleor-app";
+import { createClient } from "../../../lib/graphql/client";
+import { FETCH_ORDER, UPDATE_LINE_DISCOUNT, UPDATE_LINE_METADATA } from "../../../lib/graphql/queries";
+import { getAppConfig } from "../../../lib/config";
+import { BulkDiscountCalculator } from "../../../lib/bulk-discount";
+import { BulkMetadataManager } from "../../../lib/bulk-metadata";
+import { groupLinesByProduct } from "../../../lib/bulk-metadata";
+import { gql } from "@apollo/client";
+import { OrderData, OrderLine } from "../../../types/bulk-types";
 
-import {
-  OrderCreatedSubscriptionDocument,
-  OrderCreatedWebhookPayloadFragment,
-} from "@/generated/graphql";
-import { createClient } from "@/lib/create-graphq-client";
-import { saleorApp } from "@/saleor-app";
+interface OrderPayload {
+  order: {
+    id: string;
+    created: string;
+  };
+}
 
-/**
- * Create abstract Webhook. It decorates handler and performs security checks under the hood.
- *
- * orderCreatedWebhook.getWebhookManifest() must be called in api/manifest too!
- */
-export const orderCreatedWebhook = new SaleorAsyncWebhook<OrderCreatedWebhookPayloadFragment>({
-  name: "Order Created in Saleor",
+interface ApolloQueryResult<T> {
+  data?: T;
+  loading: boolean;
+  error?: any;
+}
+
+export const orderCreatedWebhook = new SaleorAsyncWebhook<OrderPayload>({
+  name: "Order Created - Bulk Credits",
   webhookPath: "api/webhooks/order-created",
   event: "ORDER_CREATED",
   apl: saleorApp.apl,
-  query: OrderCreatedSubscriptionDocument,
+  query: gql`
+    subscription {
+      event {
+        ... on OrderCreated {
+          order {
+            id
+            created
+          }
+        }
+      }
+    }
+  `,
 });
 
-/**
- * Export decorated Next.js pages router handler, which adds extra context
- */
-export default orderCreatedWebhook.createHandler((req, res, ctx) => {
-  const {
-    /**
-     * Access payload from Saleor - defined above
-     */
-    payload,
-    /**
-     * Saleor event that triggers the webhook (here - ORDER_CREATED)
-     */
-    event,
-    /**
-     * App's URL
-     */
-    baseUrl,
-    /**
-     * Auth data (from APL) - contains token and saleorApiUrl that can be used to construct graphQL client
-     */
-    authData,
-  } = ctx;
+export default orderCreatedWebhook.createHandler(async (req, res, context) => {
+  const { payload, authData } = context;
+  const order = payload.order;
 
-  /**
-   * Perform logic based on Saleor Event payload
-   */
-  console.log(`Order was created for customer: ${payload.order?.userEmail}`);
+  if (!order) {
+    return res.status(200).json({ message: "No order in payload" });
+  }
 
-  /**
-   * Create GraphQL client to interact with Saleor API.
-   */
-  const client = createClient(authData.saleorApiUrl, async () => ({ token: authData.token }));
+  try {
+    const client = createClient(authData.saleorApiUrl, authData.token);
+    const config = await getAppConfig(client, authData.appId);
 
-  /**
-   * Now you can fetch additional data using urql.
-   * https://formidable.com/open-source/urql/docs/api/core/#clientquery
-   */
+    // Fetch full order details with unit prices
+    const orderData: ApolloQueryResult<OrderData> = await client.query({ query: gql(FETCH_ORDER), variables: { id: order.id } });
 
-  // const data = await client.query().toPromise()
+    if (!orderData.data?.order?.lines) {
+      return res.status(400).json({ message: "No order lines found" });
+    }
 
-  /**
-   * Inform Saleor that webhook was delivered properly.
-   */
-  return res.status(200).end();
+    const lines: OrderLine[] = orderData.data.order.lines;
+
+    // Calculate discounts
+    const discounts = BulkDiscountCalculator.calculateDiscount(lines, config);
+
+    // Group lines for pooled metadata
+    const groups: { [key: string]: OrderLine[] } = groupLinesByProduct(lines);
+
+    // First pass: Apply discounts and set per-line metadata (excluding pooled values)
+    for (const line of lines) {
+      const discount = discounts.get(line.id);
+
+      if (discount && discount.shouldApplyDiscount) {
+        // Apply discount
+        await client.mutate({
+          mutation: gql(UPDATE_LINE_DISCOUNT),
+          variables: { lineId: line.id, input: { valueType: "FIXED", value: discount.discountValue, reason: "Bulk Discount" } },
+        });
+
+        // Create per-line metadata
+        const metadata = BulkMetadataManager.createBulkMetadata(
+          line.quantity,
+          line.product.id,
+          new Date(order.created),
+          config
+        );
+
+        // Update line metadata
+        await client.mutate({
+          mutation: gql(UPDATE_LINE_METADATA),
+          variables: { id: line.id, input: BulkMetadataManager.toMetadataInput(metadata) },
+        });
+      }
+    }
+
+    // Second pass: Compute and set pooled values (bulk_remaining, bulk_deadline) on qualifying groups
+    for (const [productId, groupLines] of Object.entries(groups)) {
+      const totalQty = groupLines.reduce((sum: number, line: OrderLine) => sum + line.quantity, 0);
+      if (totalQty < config.minQty) continue;
+
+      // Compute pooled remaining (initially totalQty) and min deadline (all same initially)
+      const deadlines = groupLines.map((line: OrderLine) => new Date(order.created).setDate(new Date(order.created).getDate() + config.windowDays));
+      const minDeadline = new Date(Math.min(...deadlines));
+
+      const pooledMetadata = [
+        { key: "bulk_remaining", value: totalQty.toString() },
+        { key: "bulk_deadline", value: minDeadline.toISOString() },
+      ];
+
+      for (const line of groupLines) {
+        await client.mutate({
+          mutation: gql(UPDATE_LINE_METADATA),
+          variables: { id: line.id, input: pooledMetadata },
+        });
+      }
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error("Error processing order:", error);
+    return res.status(500).json({ error: error.message });
+  }
 });
-
-/**
- * Disable body parser for this endpoint, so signature can be verified
- */
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
