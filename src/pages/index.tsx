@@ -2,7 +2,7 @@ import { useAppBridge } from "@saleor/app-sdk/app-bridge";
 import { Box, Button, Input, Text } from "@saleor/macaw-ui";
 import { NextPage } from "next";
 import { useEffect, useState, ChangeEvent } from "react";
-import { useQuery, useMutation } from "@apollo/client";
+import { useQuery, useMutation } from "@apollo/client/react/hooks";
 import { gql } from "@apollo/client";
 import { FETCH_APP_METADATA, UPDATE_APP_METADATA } from "../lib/graphql/queries";
 
