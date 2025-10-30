@@ -7,7 +7,7 @@ export default createManifestHandler({
       id: "app.bulkmagic-credits",
       version: "1.0.0",
       name: "BulkMagic Credits",
-      permissions: ["MANAGE_ORDERS", "MANAGE_DISCOUNTS"],
+      permissions: ["MANAGE_ORDERS", "MANAGE_DISCOUNTS", "MANAGE_APPS"],
       appUrl: appBaseUrl,
       configurationUrl: `${appBaseUrl}/configuration`,
       tokenTargetUrl: `${appBaseUrl}/api/register`,
@@ -26,7 +26,8 @@ export default createManifestHandler({
           name: "Order Fulfilled Webhook",
           asyncEvents: ["ORDER_FULFILLED"],
           targetUrl: `${appBaseUrl}/api/webhooks/order-fulfilled`,
-          query: "subscription { event { ... on OrderFulfilled { order { id } fulfillment { id } } } }",
+          // ✅ Updated query to remove invalid `fulfillment` field
+          query: "subscription { event { ... on OrderFulfilled { order { id lines { id } } } } }",
         },
       ],
     };

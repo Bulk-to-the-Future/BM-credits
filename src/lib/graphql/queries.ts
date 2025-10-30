@@ -4,9 +4,18 @@ export const FETCH_ORDER = `
       lines {
         id
         quantity
-        unitPrice { gross { amount } }
-        product { id }
-        privateMetadata { key value }
+        unitPrice {
+          gross {
+            amount
+          }
+        }
+        product {
+          id
+        }
+        privateMetadata {
+          key
+          value
+        }
       }
     }
   }
@@ -38,8 +47,13 @@ export const ORDER_DETAILS_QUERY = `
 export const UPDATE_LINE_DISCOUNT = `
   mutation OrderLineDiscountUpdate($lineId: ID!, $input: OrderDiscountCommonInput!) {
     orderLineDiscountUpdate(lineId: $lineId, input: $input) {
-      orderLine { id }
-      errors { field message }
+      orderLine {
+        id
+      }
+      errors {
+        field
+        message
+      }
     }
   }
 `;
@@ -75,9 +89,12 @@ export const UPDATE_APP_METADATA = `
   mutation UpdateAppMetadata($id: ID!, $input: [MetadataInput!]!) {
     updatePrivateMetadata(id: $id, input: $input) {
       item {
-        privateMetadata {
-          key
-          value
+        ... on App {
+          id
+          privateMetadata {
+            key
+            value
+          }
         }
       }
       errors {
@@ -88,7 +105,6 @@ export const UPDATE_APP_METADATA = `
   }
 `;
 
-// FULFILL_ORDER not needed for app logic, but keep if testing
 export const FULFILL_ORDER = `
   mutation FulfillOrder(
     $orderId: ID!
