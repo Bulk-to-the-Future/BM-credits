@@ -7,7 +7,7 @@ export default createManifestHandler({
       id: "app.bulkmagic-credits",
       version: "1.0.0",
       name: "BulkMagic Credits",
-      permissions: ["MANAGE_ORDERS", "MANAGE_DISCOUNTS", "MANAGE_APPS"],
+      permissions: ["MANAGE_ORDERS", "MANAGE_DISCOUNTS", "MANAGE_PRODUCTS"],
       appUrl: appBaseUrl,
       configurationUrl: `${appBaseUrl}/configuration`,
       tokenTargetUrl: `${appBaseUrl}/api/register`,

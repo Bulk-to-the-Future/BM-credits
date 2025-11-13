@@ -1,16 +1,39 @@
-import { groupLinesByProduct } from "./bulk-metadata";
+import { OrderLine } from "../types/bulk-types";
+import { groupLinesByProduct, getBulkSettingsFromProduct } from "./bulk-metadata";
+
+interface DiscountResult {
+  shouldApplyDiscount: boolean;
+  discountValue: number;
+}
 
 export class BulkDiscountCalculator {
-  static calculateDiscount(lines: any[], config: any) {
-    const groups: { [key: string]: any[] } = groupLinesByProduct(lines);
-    const discounts = new Map<string, { shouldApplyDiscount: boolean; discountValue: number }>();
+  static calculateDiscount(lines: OrderLine[]) {
+    // Group lines by product
+    const groups: Record<string, OrderLine[]> = groupLinesByProduct(lines);
+    const discounts = new Map<string, DiscountResult>();
 
+    // Loop through each product group
     for (const [productId, groupLines] of Object.entries(groups)) {
-      const totalQty = groupLines.reduce((sum: number, line: any) => sum + line.quantity, 0);
-      const shouldApply = totalQty >= config.minQty;
+      const product = groupLines[0]?.product || groupLines[0]?.variant?.product;
+      const settings = getBulkSettingsFromProduct(product);
 
+      // Product is not bulk eligible → no discount
+      if (!settings || !settings.eligible) {
+        for (const line of groupLines) {
+          discounts.set(line.id, { shouldApplyDiscount: false, discountValue: 0 });
+        }
+        continue;
+      }
+
+      // Calculate total quantity for this product
+      const totalQty = groupLines.reduce((sum, line) => sum + line.quantity, 0);
+      const shouldApply = totalQty >= settings.threshold;
+
+      // Apply product-specific discount
       for (const line of groupLines) {
-        const discountValue = line.unitPrice?.gross.amount * (config.discountPercent / 100) || 0;
+        const unitPrice = line.unitPrice?.gross?.amount || 0;
+        const discountValue = shouldApply ? (unitPrice * settings.value) / 100 : 0;
+
         discounts.set(line.id, { shouldApplyDiscount: shouldApply, discountValue });
       }
     }

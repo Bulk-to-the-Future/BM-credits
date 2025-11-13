@@ -11,6 +11,10 @@ export const FETCH_ORDER = `
         }
         product {
           id
+          metadata {
+            key
+            value
+          }
         }
         privateMetadata {
           key
@@ -33,6 +37,10 @@ export const ORDER_DETAILS_QUERY = `
           id
           product {
             id
+            metadata {
+              key
+              value
+            }
           }
         }
         privateMetadata {

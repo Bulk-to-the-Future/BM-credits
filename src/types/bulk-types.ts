@@ -1,10 +1,25 @@
 export interface OrderLine {
+  id: string;
+  quantity: number;
+  unitPrice?: {
+    gross?: {
+      amount: number;
+    };
+  };
+  product?: {
     id: string;
-    quantity: number;
-    unitPrice: { gross: { amount: number } };
-    product: { id: string };
-    privateMetadata: { key: string; value: string }[];
-  }
+    metadata?: { key: string; value: string }[];
+  };
+  variant?: {
+    id: string;
+    product?: {
+      id: string;
+      metadata?: { key: string; value: string }[];
+    };
+  };
+  privateMetadata?: { key: string; value: string }[];
+}
+
   
   export interface OrderData {
     order: {
