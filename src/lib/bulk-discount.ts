@@ -31,8 +31,7 @@ export class BulkDiscountCalculator {
 
       // Apply product-specific discount
       for (const line of groupLines) {
-        const unitPrice = line.unitPrice?.gross?.amount || 0;
-        const discountValue = shouldApply ? (unitPrice * settings.value) / 100 : 0;
+        const discountValue = shouldApply ? settings.value : 0;
 
         discounts.set(line.id, { shouldApplyDiscount: shouldApply, discountValue });
       }

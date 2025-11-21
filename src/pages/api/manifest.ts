@@ -23,6 +23,18 @@ export default createManifestHandler({
           query: "subscription { event { ... on OrderCreated { order { id } } } }",
         },
         {
+          name: "Draft Order Updated Webhook",
+          asyncEvents: ["DRAFT_ORDER_UPDATED"],
+          targetUrl: `${appBaseUrl}/api/webhooks/draft-order-updated`,
+          query: "subscription { event { ... on DraftOrderUpdated { order { id } } } }",
+        },
+        {
+          name: "Draft Order Created Webhook",
+          asyncEvents: ["DRAFT_ORDER_CREATED"],
+          targetUrl: `${appBaseUrl}/api/webhooks/draft-order-updated`,
+          query: "subscription { event { ... on DraftOrderCreated { order { id } } } }",
+        },
+        {
           name: "Order Fulfilled Webhook",
           asyncEvents: ["ORDER_FULFILLED"],
           targetUrl: `${appBaseUrl}/api/webhooks/order-fulfilled`,

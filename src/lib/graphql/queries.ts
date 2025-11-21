@@ -1,6 +1,7 @@
 export const FETCH_ORDER = `
   query FetchOrder($id: ID!) {
     order(id: $id) {
+      id
       lines {
         id
         quantity
@@ -9,11 +10,13 @@ export const FETCH_ORDER = `
             amount
           }
         }
-        product {
-          id
-          metadata {
-            key
-            value
+        variant {
+          product {
+            id
+            metadata {
+              key
+              value
+            }
           }
         }
         privateMetadata {
@@ -53,8 +56,8 @@ export const ORDER_DETAILS_QUERY = `
 `;
 
 export const UPDATE_LINE_DISCOUNT = `
-  mutation OrderLineDiscountUpdate($lineId: ID!, $input: OrderDiscountCommonInput!) {
-    orderLineDiscountUpdate(lineId: $lineId, input: $input) {
+  mutation OrderLineDiscountUpdate($orderLineId: ID!, $input: OrderDiscountCommonInput!) {
+    orderLineDiscountUpdate(orderLineId: $orderLineId, input: $input) {
       orderLine {
         id
       }
