@@ -50,21 +50,19 @@ export const handlerFn = async (req: NextApiRequest, res: NextApiResponse) => {
         `,
     });
 
-    try {
-        // Try to handle as Updated event first
-        await draftOrderUpdatedWebhook.createHandler(async (req, res, context) => {
+    const eventName = req.headers["saleor-event"];
+
+    if (eventName === "draft_order_updated") {
+        return draftOrderUpdatedWebhook.createHandler(async (req, res, context) => {
             await processWebhook(req, res, context);
         })(req, res);
-    } catch (e) {
-        // If it fails (e.g. event mismatch), try Created event
-        try {
-            await draftOrderCreatedWebhook.createHandler(async (req, res, context) => {
-                await processWebhook(req, res, context);
-            })(req, res);
-        } catch (err: any) {
-            console.error("Unexpected webhook error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
-            return res.status(500).json({ error: "Unexpected webhook error", details: err.message || err });
-        }
+    } else if (eventName === "draft_order_created") {
+        return draftOrderCreatedWebhook.createHandler(async (req, res, context) => {
+            await processWebhook(req, res, context);
+        })(req, res);
+    } else {
+        console.error(`Unknown event: ${eventName}`);
+        return res.status(400).json({ error: `Unknown event: ${eventName}` });
     }
 };
 
